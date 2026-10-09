@@ -13,7 +13,6 @@ import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
-import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import java.lang.ref.WeakReference
@@ -34,9 +33,8 @@ import kotlin.math.sign
  * off screen on either side and every tile gets a GPU layer, so a drag only moves three ready
  * textures as one strip. Measured on a MediaTek tablet with real two-finger input: without
  * layers the slide ran at about 30 fps (two web pages redrawn each frame); building them on
- * the first moving frame made the slide start with several 30-60 ms frames. The neighbours'
- * WebViews are woken at the same moment (a paused WebView draws nothing, so it would slide in
- * blank) and paused again afterwards, except the one that ends up on screen.
+ * the first moving frame made the slide start with several 30-60 ms frames. Hidden tiles are
+ * never paused (KioskScreen keeps them live), so the neighbours already have something to draw.
  *
  * The tile on screen is the one live page, and its redraws during a slide were what still cost
  * frames (its layer re-rendered). So it is also copied off the screen when the fingers land
@@ -59,7 +57,6 @@ class TileSlider(private val activity: Activity) {
   private var animator: ValueAnimator? = null
   private var offset = 0f // the shown tile's translation
   private val layered = mutableListOf<View>()
-  private val awake = mutableListOf<WebView>()
   private var snapshot: Bitmap? = null
   private var snapshotReady = false
   private var snapshotRequest = 0
@@ -87,13 +84,6 @@ class TileSlider(private val activity: Activity) {
   fun begin() {
     if (awaitingTiles || animator != null || dragging) return
     val shown = current?.get() ?: return
-    for (view in listOf(prev?.get(), next?.get())) {
-      val webView = KioskModule.findWebView(view) ?: continue
-      if (awake.none { it === webView }) {
-        webView.onResume()
-        awake += webView
-      }
-    }
     offset = 0f
     place(shown, 0f)
     copyShown(shown)
@@ -210,10 +200,6 @@ class TileSlider(private val activity: Activity) {
     sliding = null
     layered.forEach { it.setLayerType(View.LAYER_TYPE_NONE, null) }
     layered.clear()
-    // Back to sleep, except the tile now on screen (KioskScreen keeps that one resumed).
-    val staying = KioskModule.findWebView(incoming)
-    awake.forEach { if (it !== staying) it.onPause() }
-    awake.clear()
   }
 
   /** Copy what is on screen where [shown] is, for [useSnapshot]. */
