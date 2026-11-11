@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="a11y_desc">Accepts the Allow wireless debugging prompt, only on Wi-Fi networks you listed, and switches Wireless debugging back on when Android turns it off.</string>
+</resources>
