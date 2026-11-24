@@ -17,6 +17,34 @@ per boot, and stops switching on if Android turns it straight off again, until a
 The port still changes per boot; this Mac finds it with `adb mdns services` (paired hosts reconnect).
 Port lookup uses mDNS on Android 14+, a localhost scan before that (the Echo Show is Android 11).
 
+## Keeping the device reachable (added 2026-11-23)
+Two Echo Show 8 problems made the device look online while nothing could reach it (no ping, no adb):
+- **Wi-Fi power save.** The MTK chip ran with `iw dev wlan0 get power_save` = on. `PromptService` now holds a
+  `WIFI_MODE_FULL_HIGH_PERF` WifiLock for as long as it is bound, which turns power save off.
+  Check: `dumpsys wifi` lists `WifiLock{kioskadbkeeper type=3 ...}` under "Locks held".
+  The lock is taken once. After a roam the MTK driver can come back with power save on even though the lock is
+  still held (Android 11 sends no event on a roam, so there is nothing to re-apply it on). That is accepted: power
+  save only adds latency; the outage itself was the dead link below, and the cure for that is fewer roams.
+- **Dead link after a roam.** After a move to another access point the driver stayed associated with no data
+  flowing, for an hour, and Android never noticed. `NetWatchdog` (started by `PromptService`) probes every 60 s:
+  the default gateway (`isReachable`), then a TCP connect to Home Assistant at 10.0.0.190:80 (a refusal counts as an
+  answer); nothing else is sent. After 3 misses in a row (~3 min dead) it calls `WifiManager.disconnect()` +
+  `reconnect()`; if the link still doesn't answer after the next 3, Wi-Fi off + on. After any reset it waits 10 min
+  before probing again, and it does at most 3 resets an hour (then only logs "reset skipped"). Every miss and reset
+  is a `W` line in keeper.log ("net watchdog: no answer", "net watchdog RESET"). While the link answers it also switches Wireless debugging back on if it is off
+  (after a reset the Wi-Fi callback didn't always fire).
+- **Why it roams (kitchen unit, 2026-11-23).** Android's ThroughputScorer left a -30 dBm AP (ch 36, predicted
+  310 Mbps) for a -58 dBm one (ch 161, predicted 349 Mbps), then came back 20-40 s later, in bursts every few
+  minutes. `dumpsys wifi` shows it under WifiConnectivityManager ("Current connected network is not sufficient",
+  then the Candidate lines). The fix belongs on the access points, not the device.
+- Those Wi-Fi calls only work for apps targeting API 28 or lower, so the keeper now targets and requires API 28.
+  Every API it uses still exists at runtime on Android 11 (Echo Show) and 16 (tablet).
+- Test a reset over adb (drops Wi-Fi for a few seconds; do it over USB):
+  `am broadcast -n com.laiholdings.kioskadbkeeper/.SetupReceiver -f 0x20 --ei netreset 1` (disconnect/reconnect)
+  or `--ei netreset 2` (off/on).
+- Also exempt both apps from Doze after installing: `dumpsys deviceidle whitelist +com.freekiosk` and
+  `+com.laiholdings.kioskadbkeeper`.
+
 ## Build
 `./build.sh` (JDK 17 + Android command-line tools from Homebrew; no Gradle). Output: `build/kiosk-adb-keeper.apk`.
 

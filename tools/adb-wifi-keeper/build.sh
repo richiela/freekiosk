@@ -14,9 +14,9 @@ if [ ! -f "$KS" ]; then
 fi
 rm -rf build; mkdir -p build/classes
 "$BT/aapt2" compile --dir res -o build/res.zip
-"$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml --min-sdk-version 30 --target-sdk-version 36 build/res.zip -o build/base.apk
+"$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml --min-sdk-version 28 --target-sdk-version 28 build/res.zip -o build/base.apk
 javac --release 11 -classpath "$JAR" -d build/classes $(find src -name '*.java')
-"$BT/d8" --min-api 30 --lib "$JAR" --output build $(find build/classes -name '*.class')
+"$BT/d8" --min-api 28 --lib "$JAR" --output build $(find build/classes -name '*.class')
 (cd build && zip -q -j base.apk classes.dex)
 "$BT/zipalign" -p -f 4 build/base.apk build/aligned.apk
 "$BT/apksigner" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \

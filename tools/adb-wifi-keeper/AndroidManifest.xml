@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- WifiLock in PromptService: keeps Wi-Fi out of power-save so the device stays reachable -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- NetWatchdog: Wi-Fi disconnect/reconnect and off/on when the link passes no data -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <!-- localhost sockets to identify adbd (AdbPort) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- debuggable: only so `adb shell run-as` can read the log file (Log2) -->

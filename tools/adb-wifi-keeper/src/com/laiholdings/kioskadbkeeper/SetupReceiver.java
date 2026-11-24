@@ -18,6 +18,14 @@ public class SetupReceiver extends BroadcastReceiver {
             for (String x : ss.split(",")) if (!x.trim().isEmpty()) n++;
             Keeper.i("saved " + n + " allowed SSID(s)");
         }
+        // Test hook for the net watchdog's reset (adb only, like the rest of this receiver):
+        //   --ei netreset 1   disconnect + reconnect      --ei netreset 2   Wi-Fi off + on
+        int nr = intent == null ? 0 : intent.getIntExtra("netreset", 0);
+        if (nr > 0) {
+            final android.content.BroadcastReceiver.PendingResult pr = goAsync();
+            new Thread(() -> { NetWatchdog.testReset(app, nr); pr.finish(); }, "keeper-netreset-test").start();
+            return;
+        }
         Keeper.register(app);
         Keeper.schedule(app);
         Keeper.reconcileAsync(app, Keeper.Why.START, goAsync());

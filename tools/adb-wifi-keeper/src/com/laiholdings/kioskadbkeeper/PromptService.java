@@ -17,9 +17,14 @@ public class PromptService extends AccessibilityService {
     private long ignoreUntil = 0;
     private boolean loggedForeign = false;
     private android.database.ContentObserver adbWifiObserver;
+    private android.net.wifi.WifiManager.WifiLock wifiLock;
+    private NetWatchdog netWatchdog;
 
     @Override public void onServiceConnected() {
         Keeper.i("PromptService connected (up " + Keeper.up() + "s)");
+        holdWifiLock();
+        netWatchdog = new NetWatchdog(this);
+        netWatchdog.start();
         adbWifiObserver = new android.database.ContentObserver(new android.os.Handler(getMainLooper())) {
             @Override public void onChange(boolean self) { onAdbWifiChanged(); }
         };
@@ -29,7 +34,26 @@ public class PromptService extends AccessibilityService {
 
     @Override public void onDestroy() {
         if (adbWifiObserver != null) getContentResolver().unregisterContentObserver(adbWifiObserver);
+        if (netWatchdog != null) netWatchdog.stop();
+        if (wifiLock != null && wifiLock.isHeld()) { wifiLock.release(); Keeper.i("wifi lock released"); }
         super.onDestroy();
+    }
+
+    /** Keeps Wi-Fi out of power-save for as long as this service is bound. On the Echo Show 8 the chip
+     *  otherwise sleeps with power_save on and stops answering inbound traffic (ping, adb) while the
+     *  device itself still reaches the network, so the device looks online but can't be reached. */
+    @SuppressWarnings("deprecation")
+    private void holdWifiLock() {
+        try {
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager)
+                    getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            wifiLock = wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "kioskadbkeeper");
+            wifiLock.setReferenceCounted(false);
+            wifiLock.acquire();
+            Keeper.i("wifi lock held (FULL_HIGH_PERF)");
+        } catch (Throwable t) {
+            Keeper.w("wifi lock failed: " + t);
+        }
     }
 
     private void onAdbWifiChanged() {
